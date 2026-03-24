@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>用户注册</title>
+  <style>
+    body { font-family: "Noto Sans SC", sans-serif; margin: 0; background: #eef2ff; }
+    .box { max-width: 460px; margin: 60px auto; background: #fff; padding: 24px; border-radius: 14px; box-shadow: 0 12px 28px rgba(0,0,0,.1); }
+    label { display: block; margin: 12px 0 6px; }
+    input { width: 100%; padding: 10px; border: 1px solid #cbd5e1; border-radius: 8px; box-sizing: border-box; }
+    button { margin-top: 16px; width: 100%; border: 0; background: #1d4ed8; color: #fff; padding: 11px; border-radius: 8px; cursor: pointer; }
+    #msg { margin-top: 12px; color: #334155; white-space: pre-wrap; }
+  </style>
+</head>
+<body>
+  <div class="box">
+    <h2>注册</h2>
+    <form id="f">
+      <label>用户名</label>
+      <input name="username" required />
+      <label>密码</label>
+      <input name="password" type="password" required />
+      <button type="submit">提交</button>
+    </form>
+    <div id="msg"></div>
+  </div>
+  <script>
+    const form = document.getElementById('f');
+    const msg = document.getElementById('msg');
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const data = new URLSearchParams(new FormData(form));
+      const res = await fetch('/api/register', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: data
+      });
+      const text = await res.text();
+      msg.textContent = `HTTP ${res.status}\n${text}`;
+    });
+  </script>
+</body>
+</html>
