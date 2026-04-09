@@ -17,6 +17,7 @@
 static volatile sig_atomic_t g_stop = 0;
 static int g_listen_fd = -1;
 
+/* SIGINT 到来时设置退出标志，并关闭监听套接字唤醒 accept。 */
 static void on_sigint(int signo)
 {
     (void)signo;
@@ -28,6 +29,7 @@ static void on_sigint(int signo)
     }
 }
 
+/* 创建监听 socket，并绑定到指定端口。 */
 static int create_listen_socket(int port)
 {
     int fd = socket(AF_INET, SOCK_STREAM, 0);
@@ -64,8 +66,10 @@ static int create_listen_socket(int port)
     return fd;
 }
 
+/* 程序入口：初始化数据库、线程池和监听 socket，然后进入接收循环。 */
 int main(int argc, char **argv)
 {
+    /* 默认端口和工作线程数。 */
     int port = 8080;
     size_t workers = 8;
 
@@ -81,6 +85,7 @@ int main(int argc, char **argv)
 
     signal(SIGINT, on_sigint);
 
+    /* 打开数据库并确保表结构存在。 */
     db_handle_t *db = db_open(db_path);
     if (db == NULL) {
         fprintf(stderr, "failed to open database: %s\n", db_path);
@@ -93,10 +98,12 @@ int main(int argc, char **argv)
         return 1;
     }
 
+    /* 组合运行时上下文，交给路由层使用。 */
     server_context_t ctx;
     ctx.db = db;
     ctx.static_root = static_root;
 
+    /* 创建线程池，让每个连接由工作线程处理。 */
     thread_pool_t *pool = thread_pool_create(workers, handle_client_connection, &ctx);
     if (pool == NULL) {
         fprintf(stderr, "failed to create thread pool\n");
@@ -113,6 +120,7 @@ int main(int argc, char **argv)
 
     printf("server started on 0.0.0.0:%d with %zu workers\n", port, workers);
 
+    /* 主线程只负责 accept 新连接并投递到线程池。 */
     while (!g_stop) {
         struct sockaddr_in client_addr;
         socklen_t client_len = sizeof(client_addr);
@@ -130,6 +138,7 @@ int main(int argc, char **argv)
         }
     }
 
+    /* 统一释放资源，保证退出路径干净。 */
     if (g_listen_fd >= 0) {
         close(g_listen_fd);
         g_listen_fd = -1;

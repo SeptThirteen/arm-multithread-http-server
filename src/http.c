@@ -14,8 +14,10 @@
 #include <sys/stat.h>
 #include <unistd.h>
 
+/* HTTP 请求缓存上限，足以容纳常见头部和短请求体。 */
 #define REQ_BUF_CAP (64 * 1024)
 
+/* 向 socket 发送完整数据，处理短写和 EINTR。 */
 static int send_all(int fd, const void *buf, size_t len)
 {
     const char *p = (const char *)buf;
@@ -38,6 +40,7 @@ static int send_all(int fd, const void *buf, size_t len)
     return 0;
 }
 
+/* 在缓冲区中查找 HTTP 头部结束标记。 */
 static const char *find_header_end(const char *buf, size_t len)
 {
     for (size_t i = 0; i + 3 < len; i++) {
@@ -48,6 +51,7 @@ static const char *find_header_end(const char *buf, size_t len)
     return NULL;
 }
 
+/* 去掉字符串首尾空白，便于解析头部键值对。 */
 static void trim_spaces(char *s)
 {
     char *start = s;
@@ -66,6 +70,7 @@ static void trim_spaces(char *s)
     }
 }
 
+/* 解析请求行中的方法、路径和版本。 */
 static int parse_start_line(char *line, http_request_t *req)
 {
     if (sscanf(line, "%7s %1023s %15s", req->method, req->path, req->version) != 3) {
@@ -74,6 +79,7 @@ static int parse_start_line(char *line, http_request_t *req)
     return 0;
 }
 
+/* 逐行解析请求头，并提取服务端关心的字段。 */
 static int parse_headers(char *headers, http_request_t *req)
 {
     req->content_length = 0;
@@ -115,10 +121,12 @@ static int parse_headers(char *headers, http_request_t *req)
     return 0;
 }
 
+/* 读取并解析完整请求，包括可选请求体。 */
 int http_read_request(int fd, http_request_t *req)
 {
     memset(req, 0, sizeof(*req));
 
+    /* 先把请求头读入缓冲区，再按 Content-Length 读取请求体。 */
     char *buf = (char *)malloc(REQ_BUF_CAP);
     if (buf == NULL) {
         return -1;
@@ -202,6 +210,7 @@ int http_read_request(int fd, http_request_t *req)
     return 0;
 }
 
+/* 释放请求体并清空指针。 */
 void http_free_request(http_request_t *req)
 {
     if (req == NULL) {
@@ -211,6 +220,7 @@ void http_free_request(http_request_t *req)
     req->body = NULL;
 }
 
+/* 将常见状态码映射成标准原因短语。 */
 const char *http_status_text(int status_code)
 {
     switch (status_code) {
@@ -235,6 +245,7 @@ const char *http_status_text(int status_code)
     }
 }
 
+/* 发送标准 HTTP 响应头和响应体。 */
 int http_send_response(int fd, int status_code, const char *content_type, const void *body, size_t body_len, int close_conn)
 {
     char header[512];
@@ -269,6 +280,7 @@ int http_send_response(int fd, int status_code, const char *content_type, const 
     return 0;
 }
 
+/* 根据扩展名猜测静态文件的 MIME 类型。 */
 static const char *guess_mime_type(const char *path)
 {
     const char *ext = strrchr(path, '.');
@@ -304,6 +316,7 @@ static const char *guess_mime_type(const char *path)
     return "application/octet-stream";
 }
 
+/* 直接从磁盘读取文件并通过 sendfile 发送。 */
 int http_send_file_response(int fd, const char *filepath, int close_conn)
 {
     int file_fd = open(filepath, O_RDONLY);
