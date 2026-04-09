@@ -4,25 +4,35 @@
 #include <stdlib.h>
 
 typedef struct task_node {
+    /* 待处理的客户端连接。 */
     int client_fd;
+    /* 单向队列中的下一个任务。 */
     struct task_node *next;
 } task_node_t;
 
 struct thread_pool {
+    /* 工作线程数组。 */
     pthread_t *threads;
+    /* 线程数量。 */
     size_t thread_count;
 
+    /* 任务队列头尾。 */
     task_node_t *head;
     task_node_t *tail;
 
+    /* 保护任务队列和关闭标志。 */
     pthread_mutex_t mutex;
+    /* 没有任务时阻塞工作线程。 */
     pthread_cond_t cond;
+    /* 设置后不再接收新任务。 */
     int shutting_down;
 
+    /* 线程执行的任务函数和共享上下文。 */
     task_handler_fn handler;
     void *user_data;
 };
 
+/* 工作线程入口：等待任务、取出任务并执行处理函数。 */
 static void *worker_entry(void *arg)
 {
     thread_pool_t *pool = (thread_pool_t *)arg;
@@ -54,6 +64,7 @@ static void *worker_entry(void *arg)
     return NULL;
 }
 
+/* 创建线程池，并启动所有工作线程。 */
 thread_pool_t *thread_pool_create(size_t thread_count, task_handler_fn handler, void *user_data)
 {
     if (thread_count == 0 || handler == NULL) {
@@ -96,6 +107,7 @@ thread_pool_t *thread_pool_create(size_t thread_count, task_handler_fn handler, 
     return pool;
 }
 
+/* 将新连接追加到任务队列，并唤醒一个工作线程。 */
 int thread_pool_submit(thread_pool_t *pool, int client_fd)
 {
     if (pool == NULL) {
@@ -130,6 +142,7 @@ int thread_pool_submit(thread_pool_t *pool, int client_fd)
     return 0;
 }
 
+/* 进入关闭流程，唤醒所有线程并回收剩余任务。 */
 void thread_pool_destroy(thread_pool_t *pool)
 {
     if (pool == NULL) {

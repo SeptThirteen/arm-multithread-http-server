@@ -7,10 +7,13 @@
 #include <string.h>
 
 struct db_handle {
+    /* SQLite 连接对象。 */
     sqlite3 *conn;
+    /* 保护同一连接上的并发访问。 */
     pthread_mutex_t mutex;
 };
 
+/* 打开数据库连接并初始化句柄。 */
 db_handle_t *db_open(const char *path)
 {
     db_handle_t *db = (db_handle_t *)calloc(1, sizeof(db_handle_t));
@@ -28,6 +31,7 @@ db_handle_t *db_open(const char *path)
     return db;
 }
 
+/* 关闭数据库连接、销毁互斥锁并释放句柄。 */
 void db_close(db_handle_t *db)
 {
     if (db == NULL) {
@@ -43,6 +47,7 @@ void db_close(db_handle_t *db)
     free(db);
 }
 
+/* 创建用户表，确保重复调用不会报错。 */
 int db_init_schema(db_handle_t *db)
 {
     if (db == NULL) {
@@ -73,6 +78,7 @@ int db_init_schema(db_handle_t *db)
     return 0;
 }
 
+/* 插入一个新用户，返回 0 表示成功，1 表示用户名冲突。 */
 int db_create_user(db_handle_t *db, const char *username, const char *password_hash)
 {
     if (db == NULL || username == NULL || password_hash == NULL) {
@@ -104,6 +110,7 @@ int db_create_user(db_handle_t *db, const char *username, const char *password_h
     return 0;
 }
 
+/* 查询用户名对应的密码哈希，并与传入值做比对。 */
 int db_check_user(db_handle_t *db, const char *username, const char *password_hash, int *matched)
 {
     if (db == NULL || username == NULL || password_hash == NULL || matched == NULL) {

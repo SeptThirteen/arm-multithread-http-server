@@ -1,0 +1,11 @@
+# Build artifacts
+server
+src/*.o
+
+# Runtime database
+users.db
+
+# Editor / OS
+*.swp
+*.swo
+.DS_Store

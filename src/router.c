@@ -11,6 +11,7 @@
 #include <sys/time.h>
 #include <unistd.h>
 
+/* 根据 Connection 头判断是否需要主动关闭连接。 */
 static int should_close_connection(const http_request_t *req)
 {
     if (req->connection[0] == '\0') {
@@ -19,11 +20,13 @@ static int should_close_connection(const http_request_t *req)
     return strcasecmp(req->connection, "keep-alive") != 0;
 }
 
+/* 用非常简单的方式阻止路径穿越。 */
 static int is_path_safe(const char *path)
 {
     return strstr(path, "..") == NULL;
 }
 
+/* 对密码做轻量哈希，避免明文存储。 */
 static void simple_hash(const char *input, char out_hex[17])
 {
     unsigned long long hash = 1469598103934665603ULL;
@@ -35,6 +38,7 @@ static void simple_hash(const char *input, char out_hex[17])
     snprintf(out_hex, 17, "%016llx", hash);
 }
 
+/* 从 application/x-www-form-urlencoded 风格的 body 中提取键值。 */
 static int form_get_value(const char *body, const char *key, char *out, size_t out_len)
 {
     if (body == NULL || key == NULL || out == NULL || out_len == 0) {
@@ -73,11 +77,13 @@ static int form_get_value(const char *body, const char *key, char *out, size_t o
     return -1;
 }
 
+/* 返回 JSON 格式的统一响应。 */
 static int send_json(int fd, int status, const char *json, int close_conn)
 {
     return http_send_response(fd, status, "application/json; charset=utf-8", json, strlen(json), close_conn);
 }
 
+/* 处理注册请求：解析表单、生成哈希并写入数据库。 */
 static int handle_register(int fd, const http_request_t *req, server_context_t *ctx)
 {
     char username[128] = {0};
@@ -102,6 +108,7 @@ static int handle_register(int fd, const http_request_t *req, server_context_t *
     return send_json(fd, 201, "{\"ok\":true,\"message\":\"registered\"}", 1);
 }
 
+/* 处理登录请求：校验用户名和密码哈希是否匹配。 */
 static int handle_login(int fd, const http_request_t *req, server_context_t *ctx)
 {
     char username[128] = {0};
@@ -127,6 +134,7 @@ static int handle_login(int fd, const http_request_t *req, server_context_t *ctx
     return send_json(fd, 200, "{\"ok\":true,\"message\":\"login success\"}", 1);
 }
 
+/* 根据 URL 路径拼接静态文件实际路径并返回文件内容。 */
 static int serve_static_file(int fd, const char *url_path, server_context_t *ctx, int close_conn)
 {
     if (!is_path_safe(url_path)) {
@@ -144,6 +152,7 @@ static int serve_static_file(int fd, const char *url_path, server_context_t *ctx
     return http_send_file_response(fd, filepath, close_conn);
 }
 
+/* 路由入口：按方法和路径分发到静态资源或 API。 */
 int router_handle_request(int client_fd, const http_request_t *req, server_context_t *ctx)
 {
     int close_conn = should_close_connection(req);
@@ -165,10 +174,12 @@ int router_handle_request(int client_fd, const http_request_t *req, server_conte
     return http_send_response(client_fd, 405, "text/plain; charset=utf-8", "Method Not Allowed", 18, close_conn);
 }
 
+/* 单个连接的完整处理流程：读请求、路由、回包、关闭。 */
 void handle_client_connection(int client_fd, void *user_data)
 {
     server_context_t *ctx = (server_context_t *)user_data;
 
+    /* 给 socket 设置读取超时，防止客户端长时间占用工作线程。 */
     struct timeval tv;
     tv.tv_sec = 5;
     tv.tv_usec = 0;
